@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
-using Newtonsoft.Json;
-
 namespace WorkWithBpmByWebServices
 {
     class ResponseStatus
@@ -20,8 +19,8 @@ namespace WorkWithBpmByWebServices
 
     class Program
     {
-		// Change URL below to point to specific bpm'online application.
         private const string baseUri = "https://pharmstore-test.gbc-team.com";
+        //private const string baseUri = "http://localhost:86";
         private const string authServiceUri = baseUri + @"/ServiceModel/AuthService.svc/Login";
         private const string processServiceUri = baseUri + @"/0/ServiceModel/ProcessEngineService.svc/";
         private static ResponseStatus status = null;
@@ -106,10 +105,10 @@ namespace WorkWithBpmByWebServices
             }
         }
 
-        public static void GbcGenerationDbStructureProcess()
+        public static void GbcGenerationDbStructureProcess(int type)
         {
             string requestString = string.Format(processServiceUri +
-                    "GbcGenerationDbStructureProcess/Execute?ResultParameterName=GbcFile"); //
+                    "GbcGenerationDbStructureProcess/Execute?GbcReportType=" + type + "&ResultParameterName=GbcFile"); //
             HttpWebRequest request = HttpWebRequest.Create(requestString) as HttpWebRequest;
             request.Method = "GET";
             request.CookieContainer = AuthCookie;
@@ -119,14 +118,16 @@ namespace WorkWithBpmByWebServices
                 {
                     string responseText = reader.ReadToEnd();
                     responseText = responseText.Replace("<string xmlns=\"http://schemas.microsoft.com/2003/10/Serialization/\">\"", "");
-                    responseText  = responseText.Replace("\"</string>", "");
+                    responseText = responseText.Replace("\"</string>", "");
 
                     var bbb = Convert.FromBase64String(responseText);
-                    File.WriteAllBytes(string.Format("DbStructure.xlsx", DateTime.Today.ToString("ddMMyyyy")), bbb);
-                    Console.WriteLine(responseText);
+                    File.WriteAllBytes(string.Format(type == 1 ? "DbStructure.xlsx" : "DbPages.xlsx", DateTime.Today.ToString("ddMMyyyy")), bbb);
+                    
+                    Console.WriteLine(requestString + " OK");
                 }
             }
         }
+
 
         /// <summary>
         /// Reads all bpm'online contacts and displays them.
@@ -150,34 +151,65 @@ namespace WorkWithBpmByWebServices
 
         static void Main(string[] args)
         {
-            var f = File.ReadAllText("C:\\crm82\\Terrasoft.WebApp\\Terrasoft.Configuration\\Pkg\\IBD\\Schemas\\RPAccountPageBPKD\\RPAccountPageBPKD.js");
-
+            /*
+            var f = File.ReadAllLines("C:\\crm86\\BPMSoft.WebApp\\BPMSoft.Configuration\\Pkg\\GbcPharmstoreCRM\\Schemas\\GbcPreauction1Page\\GbcPreauction1Page.js");
+            string diffClean = string.Empty;
+            foreach (string line in f) {
+                if (!line.Contains(".ViewItemType.")) diffClean += line;
+            }
             Regex diffRegexp = new Regex(@"(\/\*\*SCHEMA_DIFF\*\/)([\s\S]*)(\/\*\*SCHEMA_DIFF\*\/)");
             Regex functionRegexp = new Regex(@"(\:\s*function\s*\(.*\)\s*\{[\s\S]*\})");
-            string json = diffRegexp.Match(f).Value;
-            json =  json.Replace("/**SCHEMA_DIFF*/", "");
+            string json = diffRegexp.Match(diffClean).Value;
 
+            Dictionary<string,  HashSet<string>> containers = new Dictionary<string, HashSet<string>>();
+
+
+            List<Root> myDeserializedClass = JsonConvert.DeserializeObject<List<Root>>(json);
+            foreach (Root item in myDeserializedClass)
+            {
+                if (item.operation != "insert" && item.operation != "merge") continue;
+
+                string container = item.values?.layout?.layoutName ?? item.parentName ?? string.Empty;
+                if (!containers.ContainsKey(container)) containers.Add(container, new HashSet<string>());
+                
+                string containerCaption = string.Empty; // откуда-то из ресурсов
+                string itemName = item.values.bindTo ?? item.name;
+                containers[container].Add(itemName);
+
+                string itemNameCaption = string.Empty; // откуда-то из ресурсов
+
+            }
+
+            /*
             dynamic jsonDe = JsonConvert.DeserializeObject(json);
 
 
             foreach (dynamic jsons in jsonDe)
             { }
 
-                List<Root> myDeserializedClass = JsonConvert.DeserializeObject<List<Root>>(json);
+               
 
             //Product json = JsonConvert.DeserializeObject<Product>(json);
 
             return;
+            */
 
+            
             if (!TryLogin("clio", "dominator"))
             {
                 Console.WriteLine("Wrong login or password. Application will be terminated.");
-            }
-            else
+                return;
+            }/*
+            if (!TryLogin("Supervisor", "Supervisor"))
             {
+                Console.WriteLine("Wrong login or password. Application will be terminated.");
+                return;
+            }*/
+            else
                 try
                 {
-                    GbcGenerationDbStructureProcess();
+                    GbcGenerationDbStructureProcess(1);
+                    GbcGenerationDbStructureProcess(2);
                 }
                 catch (Exception)
                 {
@@ -185,7 +217,6 @@ namespace WorkWithBpmByWebServices
                     throw;
                 }
 
-            };
 
         }
     }
